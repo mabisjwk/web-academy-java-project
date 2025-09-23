@@ -1,14 +1,16 @@
 package com.example;
 
 import java.math.BigDecimal;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement; // Importação correta para Statement SQL
+import java.sql.*;
 import java.util.Scanner;
 import model.Produto;
 
 public class Main {
-    
+
+    private static final String URL = "jdbc:mysql://localhost:3306/dbproduto";
+    private static final String USER = "root";
+    private static final String PASSWORD = "root"; // ajuste conforme seu MySQL
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
         int opcao;
@@ -16,13 +18,13 @@ public class Main {
         do {
             exibirMenu();
             opcao = Integer.parseInt(scanner.nextLine());
-        
+
             switch (opcao) {
-                case 0 -> salvarProduto();
+                case 0 -> salvarProduto(scanner);
                 case 1 -> buscarTodosProdutos();
-                case 2 -> buscarProdutoPorId();
-                case 3 -> atualizarProduto();
-                case 4 -> excluirProduto();
+                case 2 -> buscarProdutoPorId(scanner);
+                case 3 -> atualizarProduto(scanner);
+                case 4 -> excluirProduto(scanner);
                 case 5 -> {
                     System.out.println("Saindo do programa...");
                     scanner.close();
@@ -44,96 +46,153 @@ public class Main {
         System.out.print("Escolha uma opção: ");
     }
 
-    private static void salvarProduto() {
-        Scanner scanner = new Scanner(System.in);
+    private static void salvarProduto(Scanner scanner) {
         System.out.println("\n### Criar Novo Produto ###");
 
-        System.out.println("Nome do produto: ");
+        System.out.print("Nome do produto: ");
         String nomeProduto = scanner.nextLine();
 
-        System.out.println("Marca do produto: ");
+        System.out.print("Marca do produto: ");
         String marcaProduto = scanner.nextLine();
 
-        System.out.println("Valor do produto: ");
+        System.out.print("Valor do produto: ");
         BigDecimal valorProduto = new BigDecimal(scanner.nextLine());
 
-        //objeto produto
         Produto produto = new Produto();
         produto.setNomeProduto(nomeProduto);
         produto.setMarcaProduto(marcaProduto);
         produto.setValorProduto(valorProduto);
-    
-        // conexão com banco
-    
-        var url = "jdbc:mysql://localhost:3306/dbproduto"; //tem q ver isso dae
 
-        try (var connection = DriverManager.getConnection(url, "root", "")) {
-            System.out.println("banco conectado");
+        String sql = "INSERT INTO produto (nome, marca, valor) VALUES (?, ?, ?)";
 
-            // inserindo produto na colonua produto
-            //usar preparedStatement?
-            String sql = "INSERT INTO produto (nome, marca, valor) VALUES ('" +
-                produto.getNomeProduto() + "', '" + produto.getMarcaProduto() + "', " + produto.getValorProduto() + ")";
-        
-            try(Statement stmt = connection.createStatement()) {
-                int linhasAfetadas = stmt.executeUpdate(sql);
-                System.out.println("Produto inserido. Linhas afetadas: " + linhasAfetadas);
-            }
+        try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setString(1, produto.getNomeProduto());
+            stmt.setString(2, produto.getMarcaProduto());
+            stmt.setBigDecimal(3, produto.getValorProduto());
+
+            int linhasAfetadas = stmt.executeUpdate();
+            System.out.println("Produto inserido. Linhas afetadas: " + linhasAfetadas);
 
         } catch (SQLException e) {
-            System.err.println("Erro ao conectar ao banco de dados ou executar a query: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Erro ao salvar produto: " + e.getMessage());
         }
-        
-    }  
+    }
 
     private static void buscarTodosProdutos() {
         System.out.println("\n### Buscar Todos ###");
-        
-        var url = "jdbc:mysql://localhost:3306/dbproduto"; //vee
 
-        try (var connection = DriverManager.getConnection(url, "root", "")) {
-            String sql = "SELECT * FROM produto";
+        String sql = "SELECT * FROM produto";
 
-            try(Statement stmt = connection.createStatement()) {
-                var rs = stmt.executeQuery(sql);
+        try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD);
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
 
-                while(rs.next()){
-                    Long id = rs.getLong("id");
-                    String nome = rs.getString("nome");
-                    String marca = rs.getString("marca");
-                    BigDecimal valor = rs.getBigDecimal("valor");
+            while (rs.next()) {
+                Long id = rs.getLong("id");
+                String nome = rs.getString("nome");
+                String marca = rs.getString("marca");
+                BigDecimal valor = rs.getBigDecimal("valor");
 
-                    System.out.println("ID: " + id);
-                    System.out.println("Nome: " + nome);
-                    System.out.println("Marca: " + marca);
-                    System.out.println("Valor: R$ " + valor);
-                    System.out.println("---------------------------");
-
-                }
+                System.out.println("ID: " + id);
+                System.out.println("Nome: " + nome);
+                System.out.println("Marca: " + marca);
+                System.out.println("Valor: R$ " + valor);
+                System.out.println("---------------------------");
             }
-        } catch (SQLException e) { // "e" só pra armazenar o erro
+
+        } catch (SQLException e) {
             System.err.println("Erro ao buscar produtos: " + e.getMessage());
-            e.printStackTrace();
         }
-
     }
 
-    private static void buscarProdutoPorId() {
+    private static void buscarProdutoPorId(Scanner scanner) {
         System.out.println("\n### Buscar Produto por ID ###");
-        
-        //var url = ""
+        System.out.print("Digite o ID: ");
+        long id = Long.parseLong(scanner.nextLine());
+
+        String sql = "SELECT * FROM produto WHERE id = ?";
+
+        try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setLong(1, id);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                System.out.println("ID: " + rs.getLong("id"));
+                System.out.println("Nome: " + rs.getString("nome"));
+                System.out.println("Marca: " + rs.getString("marca"));
+                System.out.println("Valor: R$ " + rs.getBigDecimal("valor"));
+            } else {
+                System.out.println("Produto não encontrado.");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Erro ao buscar produto: " + e.getMessage());
+        }
     }
 
-    private static void atualizarProduto() {
+    private static void atualizarProduto(Scanner scanner) {
         System.out.println("\n### Atualizar Produto ###");
-        // TODO- Implementar atualizar
+
+        System.out.print("Digite o ID do produto: ");
+        long id = Long.parseLong(scanner.nextLine());
+
+        System.out.print("Novo nome: ");
+        String nome = scanner.nextLine();
+
+        System.out.print("Nova marca: ");
+        String marca = scanner.nextLine();
+
+        System.out.print("Novo valor: ");
+        BigDecimal valor = new BigDecimal(scanner.nextLine());
+
+        String sql = "UPDATE produto SET nome = ?, marca = ?, valor = ? WHERE id = ?";
+
+        try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setString(1, nome);
+            stmt.setString(2, marca);
+            stmt.setBigDecimal(3, valor);
+            stmt.setLong(4, id);
+
+            int linhasAfetadas = stmt.executeUpdate();
+
+            if (linhasAfetadas > 0) {
+                System.out.println("Produto atualizado com sucesso!");
+            } else {
+                System.out.println("Produto não encontrado.");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Erro ao atualizar produto: " + e.getMessage());
+        }
     }
 
-    private static void excluirProduto() {
+    private static void excluirProduto(Scanner scanner) {
         System.out.println("\n### Excluir Produto ###");
-        // TODO- Implementar excluir
-    }
-    
+        System.out.print("Informe o ID do produto: ");
+        long idDelete = Long.parseLong(scanner.nextLine());
 
+        String sql = "DELETE FROM produto WHERE id = ?";
+
+        try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setLong(1, idDelete);
+            int linhasAfetadas = stmt.executeUpdate();
+
+            if (linhasAfetadas > 0) {
+                System.out.println("Produto excluído com sucesso!");
+            } else {
+                System.out.println("Nenhum produto encontrado com o ID informado.");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Erro ao excluir produto: " + e.getMessage());
+        }
+    }
 }
